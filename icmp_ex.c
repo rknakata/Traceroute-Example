@@ -17,8 +17,8 @@
 #define NI_MAXHOST 1025 // http://www.microhowto.info/howto/convert_an_ip_address_to_the_corresponding_domain_name_in_c.html
 
 char hostname[NI_MAXHOST] = "";
-int icmpReqCount = 0; //this needs to be done 3 times for each ttl
-//https://stackoverflow.com/questions/6970224/providing-passing-argument-to-signal-handler
+int icmpReqCount = 0; //this needs to be done 3 times for each ttl //https://stackoverflow.com/questions/6970224/providing-passing-argument-to-signal-handler
+int firstRun = 0; // change this to 1 after the first run finishes
 
 /*
 These vars probably need to be set according to the first print statement around line 86 variables
@@ -50,6 +50,9 @@ I need to answer the questions in the readme
 
 
 int main(int argc, char * argv[]){
+  struct addrinfo *result;
+  struct addrinfo *res;
+  int error;
   char sendbuf[BUFSIZE], recvbuf[BUFSIZE], controlbuf[BUFSIZE];
   struct icmp * icmp;
   struct ip * ip;
