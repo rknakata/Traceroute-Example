@@ -15,6 +15,19 @@
 #define BUFSIZE 1500 //1500 MTU (so within one frame in layer 2)
 #define PROTO_ICMP 1
 
+/*
+need to test this program without a nat nat blocks icmp time exceeded reply from router
+
+I need to find out where the packet send and recive sigaalarm caller should go
+do i use sigalarm to call the packet function as well as use it to determing a 3 second timeout on recieve?
+
+i need toincrement the ttl incrementer
+
+i do not need sigint when i ctrl c on real traceroute nothing is printed
+
+I need to answer the questions in the readme
+*/
+
 
 int main(int argc, char * argv[]){
   char sendbuf[BUFSIZE], recvbuf[BUFSIZE], controlbuf[BUFSIZE];
@@ -30,7 +43,7 @@ int main(int argc, char * argv[]){
   //process addr info
   getaddrinfo(argv[1], NULL, NULL, &ai);
 
-  
+
 
   //process destination address
   printf("Dest: %s\n", ai->ai_canonname ? ai->ai_canonname : argv[1]);
@@ -42,12 +55,12 @@ int main(int argc, char * argv[]){
   }
 
 
-  
-  
+
+
   //initiate ICMP header
   icmp = (struct icmp *) sendbuf; //map to get proper layout
   icmp->icmp_type = ICMP_ECHO; //Do an echoreply
-  icmp->icmp_code = 0; 
+  icmp->icmp_code = 0;
   icmp->icmp_id = 42;
   icmp->icmp_seq= 0;
   icmp->icmp_cksum = 0;
@@ -66,7 +79,7 @@ int main(int argc, char * argv[]){
   //built msgheader structure for receiving reply
   iov.iov_base = recvbuf;
   iov.iov_len = BUFSIZE;
-  
+
   msg.msg_name = NULL;
   msg.msg_namelen = 0;
   msg.msg_iov = &iov;
@@ -84,7 +97,7 @@ int main(int argc, char * argv[]){
 
   ip = (struct ip*) recvbuf;
   ip_len = ip->ip_hl << 2; //length of ip header
-  
+
   icmp = (struct icmp *) (recvbuf + ip_len);
   data_len = (recv_len - ip_len);
 
