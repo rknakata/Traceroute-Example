@@ -9,6 +9,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <signal.h>
 
 #include "checksum.h" //my checksum library
 
@@ -47,6 +48,10 @@ i do not need sigint when i ctrl c on real traceroute nothing is printed
 
 I need to answer the questions in the readme
 */
+
+void sighandler(int signum) {
+   printf("put the trace route function  here");
+}
 
 
 int main(int argc, char * argv[]){
@@ -104,6 +109,8 @@ int main(int argc, char * argv[]){
     firstRun = 1; // this message wont print again
   }
 
+
+signal(SIGALRM, sighandler);
 
 // sample output
 //sudo traceroute -I example.com
