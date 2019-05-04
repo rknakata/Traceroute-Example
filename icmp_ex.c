@@ -10,6 +10,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <signal.h>
+#include <sys/time.h> // added
+#include <time.h> // added
 
 #include "checksum.h" //my checksum library
 
@@ -36,7 +38,34 @@ if(firstRun == 0){
 /*DELETE ME*/
 float delayFloat = 0; //change this and delete
 int reply_ttl = 0; //change this and delete
-keepRunning = 1;
+int keepRunning = 1;
+
+//get packet to return time
+// char sentTimeBuffer[30]; // holds the string of delay
+// char receivedTimeBuffer[30]; // holds the string of delay
+struct timeval sent;
+struct timeval received;
+struct timeval programStart;// this is used in the console when sig int is received
+struct timeval programEnd;// this is used in the console when sig int is received
+
+time_t sentTime;
+time_t receivedTime;
+time_t programStartTime;
+time_t programEndTime;
+long delay = 0;
+long totalRoundTripTime = 0;
+long programRunTime; // this is printed in the console when sig int is received
+
+//https://stackoverflow.com/questions/6970224/providing-passing-argument-to-signal-handler
+
+float minDelayFloat = 0; // min
+float avgDelayFloat = 0; // avg
+float maxDelayFloat = 0; // max
+float standardDeviation = 0; // mdev
+float totalDelayFloat = 0;
+float devArray[100];
+int devCount = 0;
+//make this dynamic if i work on this in the future
 
 /*
 need to test this program without a nat nat blocks icmp time exceeded reply from router
@@ -61,14 +90,16 @@ void handler(int signum) { // i should use this for time out maybe set global va
 
 
 int main(int argc, char * argv[]){
-  struct addrinfo *result;
-  struct addrinfo *res;
-  int error;
+//  struct addrinfo *result;
+//  struct addrinfo *res;
+  // i think this is supposed to be used instead of doing first run like i did nvm i added this
+//  int error;
   char sendbuf[BUFSIZE], recvbuf[BUFSIZE], controlbuf[BUFSIZE];
   struct icmp * icmp;
   struct ip * ip;
   int sockfd;
-  int packet_len, recv_len, ip_len, data_len;
+  // int packet_len, recv_len, ip_len, data_len;
+    int packet_len, recv_len, ip_len;
   struct addrinfo * ai;
   struct iovec iov;
   struct msghdr msg;
@@ -110,21 +141,32 @@ int main(int argc, char * argv[]){
   //
   //
   // freeaddrinfo(result);
+
+
 while(keepRunning == 1){
 // //  printf("%d bytes from %s (%s): icmp_req=%d ttl=%d time=%.1f ms\n", data_len, hostname, inet_ntoa(ip->ip_src), icmpReqCount, reply_ttl, delayFloat);
 //   printf("hostname: %s", hostname);
   getaddrinfo(argv[1], NULL, NULL, &ai);
   addr = (struct sockaddr_in *)ai->ai_addr;
-  if(firstRun == 0){
-    //process addr info
-    // getaddrinfo(argv[1], NULL, NULL, &ai);
-    // addr = (struct sockaddr_in *)ai->ai_addr;
-      //process destination address
-    printf("traceroute to %s (%s), (%d) hops max, 60 byte packets\n", ai->ai_canonname ? ai->ai_canonname : argv[1], inet_ntoa((struct in_addr)addr->sin_addr), maxTTL);
-    firstRun = 1; // this message wont print again
-  }
-strcpy(hostname, inet_ntoa((struct in_addr)addr->sin_addr));
+//   if(firstRun == 0){
+//     //process addr info
+//     // getaddrinfo(argv[1], NULL, NULL, &ai);
+//     // addr = (struct sockaddr_in *)ai->ai_addr;
+//       //process destination address
+//     printf("traceroute to %s (%s), (%d) hops max, 60 byte packets\n", ai->ai_canonname ? ai->ai_canonname : argv[1], inet_ntoa((struct in_addr)addr->sin_addr), maxTTL);
+//     firstRun = 1; // this message wont print again
+//   }
+// strcpy(hostname, inet_ntoa((struct in_addr)addr->sin_addr));
+if(firstRun == 0){
+  //process addr info
+  // getaddrinfo(argv[1], NULL, NULL, &ai);
+  // addr = (struct sockaddr_in *)ai->ai_addr;
+    //process destination address
+  printf("traceroute to %s (%s), (%d) hops max, 60 byte packets\n", ai->ai_canonname ? ai->ai_canonname : argv[1], inet_ntoa((struct in_addr)addr->sin_addr), maxTTL);
+  firstRun = 1; // this message wont print again
+}
 freeaddrinfo(ai);
+
 // alarm(0);
 // signal(SIGALRM, handler);
 // alarm(0);
@@ -166,6 +208,9 @@ freeaddrinfo(ai);
   packet_len = sizeof(struct icmp);
   //https://stackoverflow.com/questions/24590818/what-is-the-difference-between-ipproto-ip-and-ipproto-raw
   setsockopt(sockfd, IPPROTO_IP, IP_TTL, &currentTTL, sizeof(int));
+  gettimeofday(&sent, NULL);
+  sentTime = sent.tv_sec;
+
   //Setsockopt (sockfd, IPPROTO_IP, IP_TTL, &currentTTL, sizeof(int));
   //send the packet
   if( sendto(sockfd, sendbuf, packet_len, 0, ai->ai_addr, ai->ai_addrlen) < 0){
@@ -191,20 +236,40 @@ freeaddrinfo(ai);
     exit(1);
   }
 
+
+
+  //receivedTime = received.tv_sec;
+    gettimeofday(&received, NULL);
+    receivedTime = received.tv_sec;
+    // strftime(receivedTimeBuffer,30,"%m-%d-%Y  %T.",localtime(&receivedTime));
+    // printf("%s%ld\n",receivedTimeBuffer,received.tv_usec);
+
+    delay = (received.tv_sec - sent.tv_sec) * 1000000 + received.tv_usec - sent.tv_usec; // useq is a milionth of a second ms is microsecond which is 1/1000th of a second
+    //delay = received.tv_usec - sent.tv_usec; // useq is a milionth of a second ms is microsecond which is 1/1000th of a second
+
+/************************
+look here
+****************************************/
+    float delayFloat = delay;
+      delayFloat = delayFloat / 1000;
+printf("delete delay %.3f ms ", delayFloat);
+
+  delay = 0; // set global variable back to 0
+
 //  printf("%d\n",recv_len);
 
   ip = (struct ip*) recvbuf;
   ip_len = ip->ip_hl << 2; //length of ip header
 
   icmp = (struct icmp *) (recvbuf + ip_len);
-  data_len = (recv_len - ip_len);
+  //data_len = (recv_len - ip_len);
 /*
 EXAMPLE output
 ttl? ip          time of 3 icmp requests made with the same corresponding ttl
 1 130.58.68.1 0.193 ms 0.197 ms 0.205 ms
 */
 
-printf("%d bytes from %s\n", data_len, inet_ntoa(ip->ip_src));
+
 
 int same = 0;
 
@@ -225,14 +290,17 @@ if (uip1 == uip2)
   same = 1;
 }
 
-printf("%s,%s\n", ip1,ip2 );
-
 
 // end of move this to new sig alarm function (sig alarm does this make a new thread?)
 if(currentTTL == maxTTL ||  same == 1){ // if the max ttl is hit or the destination ip is reached stop running
   keepRunning = 0;
 }
+else{
+  getaddrinfo(inet_ntoa(ip->ip_src), NULL, NULL, &ai);
+  //printf("%d bytes from %s\n", data_len, inet_ntoa(ip->ip_src));
+  printf("%s (%s) %d ms %d ms %d ms\n", ai->ai_canonname ? ai->ai_canonname : inet_ntoa(ip->ip_src), inet_ntoa(ip->ip_src) , 1337, 1337, 1337);
   currentTTL ++;
+}
 }
   return 0;
 }
