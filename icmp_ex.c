@@ -67,6 +67,9 @@ float devArray[100];
 int devCount = 0;
 //make this dynamic if i work on this in the future
 
+float tryTime[] = {0,0,0};
+int currentTry3 = 0; // this can be 0 1 2
+
 /*
 need to test this program without a nat nat blocks icmp time exceeded reply from router
 
@@ -146,6 +149,7 @@ int main(int argc, char * argv[]){
 while(keepRunning == 1){
 // //  printf("%d bytes from %s (%s): icmp_req=%d ttl=%d time=%.1f ms\n", data_len, hostname, inet_ntoa(ip->ip_src), icmpReqCount, reply_ttl, delayFloat);
 //   printf("hostname: %s", hostname);
+while(currentTry3 < 3){
   getaddrinfo(argv[1], NULL, NULL, &ai);
   addr = (struct sockaddr_in *)ai->ai_addr;
 //   if(firstRun == 0){
@@ -248,11 +252,18 @@ freeaddrinfo(ai);
     //delay = received.tv_usec - sent.tv_usec; // useq is a milionth of a second ms is microsecond which is 1/1000th of a second
 
 /************************
-look here
+look here make it run 4 times use array for each current ttl
 ****************************************/
     float delayFloat = delay;
       delayFloat = delayFloat / 1000;
-printf("delete delay %.3f ms ", delayFloat);
+//printf("delete delay %.3f ms ", delayFloat);
+tryTime[currentTry3] = delayFloat;
+
+if(currentTry3 <= 3){
+ currentTry3 ++;
+}
+  printf("%d", currentTry3);
+
 
   delay = 0; // set global variable back to 0
 
@@ -268,8 +279,8 @@ EXAMPLE output
 ttl? ip          time of 3 icmp requests made with the same corresponding ttl
 1 130.58.68.1 0.193 ms 0.197 ms 0.205 ms
 */
-
-
+}
+//inner while loop bracket
 
 int same = 0;
 
@@ -290,7 +301,6 @@ if (uip1 == uip2)
   same = 1;
 }
 
-
 // end of move this to new sig alarm function (sig alarm does this make a new thread?)
 if(currentTTL == maxTTL ||  same == 1){ // if the max ttl is hit or the destination ip is reached stop running
   keepRunning = 0;
@@ -298,8 +308,10 @@ if(currentTTL == maxTTL ||  same == 1){ // if the max ttl is hit or the destinat
 else{
   getaddrinfo(inet_ntoa(ip->ip_src), NULL, NULL, &ai);
   //printf("%d bytes from %s\n", data_len, inet_ntoa(ip->ip_src));
-  printf("%s (%s) %d ms %d ms %d ms\n", ai->ai_canonname ? ai->ai_canonname : inet_ntoa(ip->ip_src), inet_ntoa(ip->ip_src) , 1337, 1337, 1337);
+  printf(" %d %s (%s) %.3f ms %.3f ms %.3f ms\n",currentTTL ,ai->ai_canonname ? ai->ai_canonname : inet_ntoa(ip->ip_src), inet_ntoa(ip->ip_src) , tryTime[0], tryTime[1], tryTime[2]);
   currentTTL ++;
+
+    currentTry3 = 0;
 }
 }
   return 0;
