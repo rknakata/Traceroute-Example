@@ -17,10 +17,11 @@
 #define PROTO_ICMP 1
 #define NI_MAXHOST 1025 // http://www.microhowto.info/howto/convert_an_ip_address_to_the_corresponding_domain_name_in_c.html
 
-char hostname[NI_MAXHOST] = "";
+//char hostname[NI_MAXHOST] = "";
 int icmpReqCount = 0; //this needs to be done 3 times for each ttl //https://stackoverflow.com/questions/6970224/providing-passing-argument-to-signal-handler
 int firstRun = 0; // change this to 1 after the first run finishes
-
+int currentTTL = 1;
+int maxTTL = 30;
 /*
 These vars probably need to be set according to the first print statement around line 86 variables
 printf("%d bytes from %s (%s): icmp_req=%d ttl=%d time=%.1f ms\n", data_len, hostname, inet_ntoa(ip->ip_src), icmpReqCount, reply_ttl, delayFloat);
@@ -34,7 +35,7 @@ if(firstRun == 0){
 /*DELETE ME*/
 float delayFloat = 0; //change this and delete
 int reply_ttl = 0; //change this and delete
-
+keepRunning = 1;
 
 /*
 need to test this program without a nat nat blocks icmp time exceeded reply from router
@@ -47,10 +48,14 @@ i need toincrement the ttl incrementer
 i do not need sigint when i ctrl c on real traceroute nothing is printed
 
 I need to answer the questions in the readme
+
+Traceroute sends out three packets per TTL increment. Each column corresponds to the time is took to get one packet back (round-trip-time).
 */
 
-void sighandler(int signum) {
-   printf("put the trace route function  here");
+void handler(int signum) { // i should use this for time out maybe set global variable after a timer and cancel this by callign alarm(0)
+  //https://stackoverflow.com/questions/12406915/using-signal-and-alarm-as-timeouts-in-c
+   // printf("put the trace route function  here\n");
+   // exit(1);
 }
 
 
@@ -66,6 +71,7 @@ int main(int argc, char * argv[]){
   struct addrinfo * ai;
   struct iovec iov;
   struct msghdr msg;
+  struct sockaddr_in *addr; // this was in first run
 
 
   //process addr info
@@ -73,52 +79,65 @@ int main(int argc, char * argv[]){
   // this gets information about ip
   //getaddrinfo(argv[1], NULL, NULL, &ai);
 
-  /* resolve the domain name into a list of addresses */
-  error = getaddrinfo(argv[1], NULL, NULL, &ai);
-  if (error != 0)
-  {
-      fprintf(stderr, "error in getaddrinfo: %s\n", gai_strerror(error));
-      return EXIT_FAILURE;
-  }
+  // /* resolve the domain name into a list of addresses */
+  // error = getaddrinfo(argv[1], NULL, NULL, &result);
+  // if (error != 0)
+  // {
+  //     fprintf(stderr, "error in getaddrinfo: %s\n", gai_strerror(error));
+  //     return EXIT_FAILURE;
+  // }
+  //
+  // //fix this later
+  // /* loop over all returned results and do inverse lookup */
+  // for (res = result; res != NULL; res = res->ai_next)
+  // {
+  //     // char hostname[NI_MAXHOST] = "";
+  //
+  //
+  //     error = getnameinfo(res->ai_addr, res->ai_addrlen, hostname, NI_MAXHOST, NULL, 0, 0);
+  //     if (error != 0)
+  //     {
+  //         fprintf(stderr, "error in getnameinfo: %s\n", gai_strerror(error));
+  //         continue;
+  //     }
+  //     if (*hostname != '\0'){
+  //         //hostname is sets
+  //
+  //         // printf("hostname: %s\n", hostname);// char hostname[NI_MAXHOST] = "";
+  //     }
+  // }
+  //
+  //
+  // freeaddrinfo(result);
 
-  //fix this later
-  /* loop over all returned results and do inverse lookup */
-  for (res = ai; res != NULL; res = res->ai_next)
-  {
-      // char hostname[NI_MAXHOST] = "";
-
-
-      error = getnameinfo(res->ai_addr, res->ai_addrlen, hostname, NI_MAXHOST, NULL, 0, 0);
-      if (error != 0)
-      {
-          fprintf(stderr, "error in getnameinfo: %s\n", gai_strerror(error));
-          continue;
-      }
-      if (*hostname != '\0'){
-          //hostname is sets
-
-          // printf("hostname: %s\n", hostname);// char hostname[NI_MAXHOST] = "";
-      }
-  }
-
-
-  freeaddrinfo(result);
-
-  printf("%d bytes from %s (%s): icmp_req=%d ttl=%d time=%.1f ms\n", data_len, hostname, inet_ntoa(ip->ip_src), icmpReqCount, reply_ttl, delayFloat);
+// //  printf("%d bytes from %s (%s): icmp_req=%d ttl=%d time=%.1f ms\n", data_len, hostname, inet_ntoa(ip->ip_src), icmpReqCount, reply_ttl, delayFloat);
+//   printf("hostname: %s", hostname);
+  getaddrinfo(argv[1], NULL, NULL, &ai);
+  addr = (struct sockaddr_in *)ai->ai_addr;
   if(firstRun == 0){
+    //process addr info
+    // getaddrinfo(argv[1], NULL, NULL, &ai);
+    // addr = (struct sockaddr_in *)ai->ai_addr;
+      //process destination address
+    printf("traceroute to %s (%s), (%d) hops max, 60 byte packets\n", ai->ai_canonname ? ai->ai_canonname : argv[1], inet_ntoa((struct in_addr)addr->sin_addr), maxTTL);
     firstRun = 1; // this message wont print again
   }
 
-
-signal(SIGALRM, sighandler);
+// alarm(0);
+// signal(SIGALRM, handler);
+// alarm(0);
 
 // sample output
 //sudo traceroute -I example.com
 //traceroute to example.com (158.130.69.89), 30 hops max, 60 byte packets
 
-  //process destination address
-  printf("Dest: %s\n", ai->ai_canonname ? ai->ai_canonname : argv[1]);
-
+// //process addr info
+// getaddrinfo(argv[1], NULL, NULL, &ai);
+//
+//   //process destination address
+//   printf("Dest: %s\n", ai->ai_canonname ? ai->ai_canonname : argv[1]);
+//
+while(keepRunning == 1){
   //Initialize the socket
   if((sockfd = socket(AF_INET, SOCK_RAW, PROTO_ICMP)) < 0){
     perror("socket"); //check for errors
@@ -135,12 +154,17 @@ signal(SIGALRM, sighandler);
   icmp->icmp_id = 42;
   icmp->icmp_seq= 0;
   icmp->icmp_cksum = 0;
+  icmp->icmp_seq = 1;
+
+  //printf("test %d\n", icmp->icmp_seq);
 
   //compute checksum
   icmp->icmp_cksum = checksum((unsigned short *) icmp, sizeof(struct icmp));
-
+  // int test = 1;
   packet_len = sizeof(struct icmp);
-
+  //https://stackoverflow.com/questions/24590818/what-is-the-difference-between-ipproto-ip-and-ipproto-raw
+  setsockopt(sockfd, IPPROTO_IP, IP_TTL, &currentTTL, sizeof(int));
+  //Setsockopt (sockfd, IPPROTO_IP, IP_TTL, &currentTTL, sizeof(int));
   //send the packet
   if( sendto(sockfd, sendbuf, packet_len, 0, ai->ai_addr, ai->ai_addrlen) < 0){
     perror("sendto");//error check
@@ -177,10 +201,36 @@ EXAMPLE output
 ttl? ip          time of 3 icmp requests made with the same corresponding ttl
 1 130.58.68.1 0.193 ms 0.197 ms 0.205 ms
 */
-  printf("%d bytes from %s\n", data_len, inet_ntoa(ip->ip_src));
+
+printf("%d bytes from %s\n", data_len, inet_ntoa(ip->ip_src));
+
+int same = 0;
+
+const char* ip1 = inet_ntoa((struct in_addr)addr->sin_addr);
+const char* ip2 = inet_ntoa(ip->ip_src);
+
+unsigned char s1, s2, s3, s4;
+unsigned int uip1, uip2;
+
+sscanf(ip1,"%hhu.%hhu.%hhu.%hhu",&s1,&s2,&s3,&s4);
+uip1 = (s1<<24) | (s2<<16) | (s3<<8) | s4; //store all values in 32bits unsigned int
+
+sscanf(ip2,"%hhu.%hhu.%hhu.%hhu",&s1,&s2,&s3,&s4);
+uip2 = (s1<<24) | (s2<<16) | (s3<<8) | s4;
+
+if (uip1 == uip2)
+{
+  same = 1;
+}
+
+printf("%s,%s\n", ip1,ip2 );
+
 
 // end of move this to new sig alarm function (sig alarm does this make a new thread?)
-
-
+if(currentTTL == maxTTL ||  same == 1){ // if the max ttl is hit or the destination ip is reached stop running
+  keepRunning = 0;
+}
+  currentTTL ++;
+}
   return 0;
 }
