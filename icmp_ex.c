@@ -17,6 +17,7 @@
 #define PROTO_ICMP 1
 #define NI_MAXHOST 1025 // http://www.microhowto.info/howto/convert_an_ip_address_to_the_corresponding_domain_name_in_c.html
 
+char hostname[NI_MAXHOST] = "";
 //char hostname[NI_MAXHOST] = "";
 int icmpReqCount = 0; //this needs to be done 3 times for each ttl //https://stackoverflow.com/questions/6970224/providing-passing-argument-to-signal-handler
 int firstRun = 0; // change this to 1 after the first run finishes
@@ -109,7 +110,7 @@ int main(int argc, char * argv[]){
   //
   //
   // freeaddrinfo(result);
-
+while(keepRunning == 1){
 // //  printf("%d bytes from %s (%s): icmp_req=%d ttl=%d time=%.1f ms\n", data_len, hostname, inet_ntoa(ip->ip_src), icmpReqCount, reply_ttl, delayFloat);
 //   printf("hostname: %s", hostname);
   getaddrinfo(argv[1], NULL, NULL, &ai);
@@ -122,7 +123,8 @@ int main(int argc, char * argv[]){
     printf("traceroute to %s (%s), (%d) hops max, 60 byte packets\n", ai->ai_canonname ? ai->ai_canonname : argv[1], inet_ntoa((struct in_addr)addr->sin_addr), maxTTL);
     firstRun = 1; // this message wont print again
   }
-
+strcpy(hostname, inet_ntoa((struct in_addr)addr->sin_addr));
+freeaddrinfo(ai);
 // alarm(0);
 // signal(SIGALRM, handler);
 // alarm(0);
@@ -137,7 +139,7 @@ int main(int argc, char * argv[]){
 //   //process destination address
 //   printf("Dest: %s\n", ai->ai_canonname ? ai->ai_canonname : argv[1]);
 //
-while(keepRunning == 1){
+// while(keepRunning == 1){
   //Initialize the socket
   if((sockfd = socket(AF_INET, SOCK_RAW, PROTO_ICMP)) < 0){
     perror("socket"); //check for errors
@@ -206,7 +208,7 @@ printf("%d bytes from %s\n", data_len, inet_ntoa(ip->ip_src));
 
 int same = 0;
 
-const char* ip1 = inet_ntoa((struct in_addr)addr->sin_addr);
+const char* ip1 = hostname;
 const char* ip2 = inet_ntoa(ip->ip_src);
 
 unsigned char s1, s2, s3, s4;
