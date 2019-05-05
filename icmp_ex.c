@@ -14,12 +14,14 @@
 #include <time.h> // added
 
 #include "checksum.h" //my checksum library
+#include <poll.h>
 
 #define BUFSIZE 1500 //1500 MTU (so within one frame in layer 2)
 #define PROTO_ICMP 1
 #define NI_MAXHOST 1025 // http://www.microhowto.info/howto/convert_an_ip_address_to_the_corresponding_domain_name_in_c.html
 
 char hostname[NI_MAXHOST] = "";
+char original[NI_MAXHOST] = "";
 //char hostname[NI_MAXHOST] = "";
 int icmpReqCount = 0; //this needs to be done 3 times for each ttl //https://stackoverflow.com/questions/6970224/providing-passing-argument-to-signal-handler
 int firstRun = 0; // change this to 1 after the first run finishes
@@ -70,6 +72,9 @@ int devCount = 0;
 float tryTime[] = {0,0,0};
 int currentTry3 = 0; // this can be 0 1 2
 
+int timeout = 0;
+
+
 /*
 need to test this program without a nat nat blocks icmp time exceeded reply from router
 
@@ -85,24 +90,28 @@ I need to answer the questions in the readme
 Traceroute sends out three packets per TTL increment. Each column corresponds to the time is took to get one packet back (round-trip-time).
 */
 
+//this may not be needed check the recv operation there are two timeouts in place but i think this incrementiing it one of them is not needded
 void handler(int signum) { // i should use this for time out maybe set global variable after a timer and cancel this by callign alarm(0)
   //https://stackoverflow.com/questions/12406915/using-signal-and-alarm-as-timeouts-in-c
    // printf("put the trace route function  here\n");
    // exit(1);
+     timeout++;
+       //printf("packet timed out delete\n");
 }
 
 
 int main(int argc, char * argv[]){
-//  struct addrinfo *result;
-//  struct addrinfo *res;
-  // i think this is supposed to be used instead of doing first run like i did nvm i added this
-//  int error;
+ struct addrinfo *result;
+ struct addrinfo *res;
+  //i think this is supposed to be used instead of doing first run like i did nvm i added this
+ int error;
+
   char sendbuf[BUFSIZE], recvbuf[BUFSIZE], controlbuf[BUFSIZE];
   struct icmp * icmp;
   struct ip * ip;
   int sockfd;
-  // int packet_len, recv_len, ip_len, data_len;
-    int packet_len, recv_len, ip_len;
+  //int packet_len, recv_len, ip_len, data_len;
+  int packet_len, recv_len, ip_len;
   struct addrinfo * ai;
   struct iovec iov;
   struct msghdr msg;
@@ -114,38 +123,37 @@ int main(int argc, char * argv[]){
   // this gets information about ip
   //getaddrinfo(argv[1], NULL, NULL, &ai);
 
-  // /* resolve the domain name into a list of addresses */
-  // error = getaddrinfo(argv[1], NULL, NULL, &result);
-  // if (error != 0)
-  // {
-  //     fprintf(stderr, "error in getaddrinfo: %s\n", gai_strerror(error));
-  //     return EXIT_FAILURE;
-  // }
-  //
-  // //fix this later
-  // /* loop over all returned results and do inverse lookup */
-  // for (res = result; res != NULL; res = res->ai_next)
-  // {
-  //     // char hostname[NI_MAXHOST] = "";
-  //
-  //
-  //     error = getnameinfo(res->ai_addr, res->ai_addrlen, hostname, NI_MAXHOST, NULL, 0, 0);
-  //     if (error != 0)
-  //     {
-  //         fprintf(stderr, "error in getnameinfo: %s\n", gai_strerror(error));
-  //         continue;
-  //     }
-  //     if (*hostname != '\0'){
-  //         //hostname is sets
-  //
-  //         // printf("hostname: %s\n", hostname);// char hostname[NI_MAXHOST] = "";
-  //     }
-  // }
-  //
-  //
-  // freeaddrinfo(result);
+  /* resolve the domain name into a list of addresses */
+  error = getaddrinfo(argv[1], NULL, NULL, &result);
+  if (error != 0)
+  {
+      fprintf(stderr, "error in getaddrinfo: %s\n", gai_strerror(error));
+      return EXIT_FAILURE;
+  }
+
+  //fix this later
+  /* loop over all returned results and do inverse lookup */
+  for (res = result; res != NULL; res = res->ai_next)
+  {
+      // char hostname[NI_MAXHOST] = "";
 
 
+      error = getnameinfo(res->ai_addr, res->ai_addrlen, hostname, NI_MAXHOST, NULL, 0, 0);
+      if (error != 0)
+      {
+          fprintf(stderr, "error in getnameinfo: %s\n", gai_strerror(error));
+          continue;
+      }
+      if (*hostname != '\0'){
+          //hostname is sets
+
+          // printf("hostname: %s\n", hostname);// char hostname[NI_MAXHOST] = "";
+      }
+  }
+
+
+  freeaddrinfo(result);
+  //signal(SIGALRM,handler);
 while(keepRunning == 1){
 // //  printf("%d bytes from %s (%s): icmp_req=%d ttl=%d time=%.1f ms\n", data_len, hostname, inet_ntoa(ip->ip_src), icmpReqCount, reply_ttl, delayFloat);
 //   printf("hostname: %s", hostname);
@@ -166,6 +174,7 @@ if(firstRun == 0){
   // getaddrinfo(argv[1], NULL, NULL, &ai);
   // addr = (struct sockaddr_in *)ai->ai_addr;
     //process destination address
+    strcpy(original, inet_ntoa((struct in_addr)addr->sin_addr));
   printf("traceroute to %s (%s), (%d) hops max, 60 byte packets\n", ai->ai_canonname ? ai->ai_canonname : argv[1], inet_ntoa((struct in_addr)addr->sin_addr), maxTTL);
   firstRun = 1; // this message wont print again
 }
@@ -233,12 +242,37 @@ freeaddrinfo(ai);
   msg.msg_control=controlbuf;
   msg.msg_controllen=BUFSIZE;
 
+  //alarm(3);
+  // LINUX
+  struct pollfd fd;
+  int ret;
+
+  fd.fd = sockfd; // your socket handler
+  fd.events = POLLIN;
+  ret = poll(&fd, 1, 3000); // 1 second for timeout
+  switch (ret) {
+      case -1:
+          // Error
+          break;
+      case 0:
+          timeout ++; // it timed out keep going
+          //printf("There is a timeout\n");
+          break;
+      default:
+          // recv(mySocket,buf,sizeof(buf), 0); // get your data
+          if((recv_len = recvmsg(sockfd, &msg, 0)) < 0){ //could get interupted ??
+            perror("recvmsg");
+            exit(1);
+          }
+          break;
+  }
+  //setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&xd, sizeof xd);
   //recv the reply
   // according to pdf i need to set a 3 second timer i also think i need to look for icmp timeout response packet_len
-  if((recv_len = recvmsg(sockfd, &msg, 0)) < 0){ //could get interupted ??
-    perror("recvmsg");
-    exit(1);
-  }
+  // if((recv_len = recvmsg(sockfd, &msg, 0)) < 0){ //could get interupted ??
+  //   perror("recvmsg");
+  //   exit(1);
+  // }
 
 
 
@@ -247,10 +281,12 @@ freeaddrinfo(ai);
     receivedTime = received.tv_sec;
     // strftime(receivedTimeBuffer,30,"%m-%d-%Y  %T.",localtime(&receivedTime));
     // printf("%s%ld\n",receivedTimeBuffer,received.tv_usec);
-
+// while(1){
+//   //printf("delete");
+// }
     delay = (received.tv_sec - sent.tv_sec) * 1000000 + received.tv_usec - sent.tv_usec; // useq is a milionth of a second ms is microsecond which is 1/1000th of a second
     //delay = received.tv_usec - sent.tv_usec; // useq is a milionth of a second ms is microsecond which is 1/1000th of a second
-
+  //alarm(0);
 /************************
 look here make it run 4 times use array for each current ttl
 ****************************************/
@@ -262,8 +298,6 @@ tryTime[currentTry3] = delayFloat;
 if(currentTry3 <= 3){
  currentTry3 ++;
 }
-  printf("%d", currentTry3);
-
 
   delay = 0; // set global variable back to 0
 
@@ -273,7 +307,12 @@ if(currentTry3 <= 3){
   ip_len = ip->ip_hl << 2; //length of ip header
 
   icmp = (struct icmp *) (recvbuf + ip_len);
-  //data_len = (recv_len - ip_len);
+  // data_len = (recv_len - ip_len);
+
+// printf("delete %d", data_len);
+  //timeout = 0;
+  // if data len is set cancel the sigalarm
+
 /*
 EXAMPLE output
 ttl? ip          time of 3 icmp requests made with the same corresponding ttl
@@ -284,8 +323,13 @@ ttl? ip          time of 3 icmp requests made with the same corresponding ttl
 
 int same = 0;
 
-const char* ip1 = hostname;
+// const char* ip1 = hostname;
+
+// const char* ip1 = inet_ntoa((struct in_addr)addr->sin_addr);
+const char* ip1 = original;
 const char* ip2 = inet_ntoa(ip->ip_src);
+
+//printf("%s,%s\n", original,inet_ntoa(ip->ip_src));
 
 unsigned char s1, s2, s3, s4;
 unsigned int uip1, uip2;
@@ -304,14 +348,36 @@ if (uip1 == uip2)
 // end of move this to new sig alarm function (sig alarm does this make a new thread?)
 if(currentTTL == maxTTL ||  same == 1){ // if the max ttl is hit or the destination ip is reached stop running
   keepRunning = 0;
+  if(same == 1){
+    getaddrinfo(inet_ntoa(ip->ip_src), NULL, NULL, &ai);
+    //printf("%d bytes from %s\n", data_len, inet_ntoa(ip->ip_src));
+    printf(" %d %s (%s) %.3f ms %.3f ms %.3f ms\n",currentTTL ,ai->ai_canonname ? ai->ai_canonname : inet_ntoa(ip->ip_src), inet_ntoa(ip->ip_src) , tryTime[0], tryTime[1], tryTime[2]);
+  }
 }
-else{
+else if(timeout == 0){
+//  printf("timeoutval:%d", timeout);
   getaddrinfo(inet_ntoa(ip->ip_src), NULL, NULL, &ai);
   //printf("%d bytes from %s\n", data_len, inet_ntoa(ip->ip_src));
   printf(" %d %s (%s) %.3f ms %.3f ms %.3f ms\n",currentTTL ,ai->ai_canonname ? ai->ai_canonname : inet_ntoa(ip->ip_src), inet_ntoa(ip->ip_src) , tryTime[0], tryTime[1], tryTime[2]);
   currentTTL ++;
 
     currentTry3 = 0;
+}
+else{
+  if(currentTTL < 10){
+  printf(" %d ",currentTTL);
+}
+else {
+    printf("%d ",currentTTL);
+}
+  while(timeout > 0){
+  printf("* ");
+  timeout--;
+}
+printf("\n");
+currentTTL ++;
+    currentTry3 = 0;
+    timeout = 0;
 }
 }
   return 0;
