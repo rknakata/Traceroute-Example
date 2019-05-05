@@ -348,10 +348,23 @@ if (uip1 == uip2)
 // end of move this to new sig alarm function (sig alarm does this make a new thread?)
 if(currentTTL == maxTTL ||  same == 1){ // if the max ttl is hit or the destination ip is reached stop running
   keepRunning = 0;
-  if(same == 1){
+  if(timeout == 0){
     getaddrinfo(inet_ntoa(ip->ip_src), NULL, NULL, &ai);
     //printf("%d bytes from %s\n", data_len, inet_ntoa(ip->ip_src));
     printf(" %d %s (%s) %.3f ms %.3f ms %.3f ms\n",currentTTL ,ai->ai_canonname ? ai->ai_canonname : inet_ntoa(ip->ip_src), inet_ntoa(ip->ip_src) , tryTime[0], tryTime[1], tryTime[2]);
+  }
+  else{
+    if(currentTTL < 10){
+    printf(" %d ",currentTTL);
+  }
+  else {
+      printf("%d ",currentTTL);
+  }
+    while(timeout > 0){
+    printf("* ");
+    timeout--;
+  }
+  printf("\n");
   }
 }
 else if(timeout == 0){
